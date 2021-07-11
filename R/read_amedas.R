@@ -141,6 +141,7 @@ read_amedas_csv <- function (filename) {
 #' @param filename
 #'
 #' @return timestamp as text
+#' @noRd
 extract_timestamp <- function (filename) {
   # Read from the file first to get timestamp and verify shape
   f <- file(filename, open = "r", encoding = "SHIFT-JIS")
