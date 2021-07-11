@@ -1,0 +1,30 @@
+Package: ramedas
+Type: Package
+Title: Read Historical AMEDAS CSV Files
+Version: 0.2.0
+Author: Richard Smith
+Maintainer: Richard Smith <richardmcsmith@gmail.com>
+Description: Historical AMEDAS data files downloaded from the [Japan Meteorological Association website](https://www.data.jma.go.jp/gmd/risk/obsdl/)
+    have multiple header rows, which stops `read_csv` from loading them properly.
+    This package reads the files and coerces them into a format that plays nicely
+    with tidy data principles. The package also provides convience functions for
+    working with the data.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Roxygen: list(markdown = TRUE)
+Imports:
+    magrittr,
+    readr,
+    dplyr,
+    tidyr,
+    tibble
+Suggests: 
+    rmarkdown,
+    knitr,
+    testthat (>= 3.0.0),
+    zipangu,
+    tidyverse
+Config/testthat/edition: 3
+VignetteBuilder: knitr

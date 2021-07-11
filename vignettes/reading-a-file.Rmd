@@ -1,0 +1,110 @@
+---
+title: "Reading an AMEDAS file"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{reading-a-file}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+`ramedas` loads csv AMEDAS data downloaded from the [JMA website](https://www.data.jma.go.jp/gmd/risk/obsdl/) in a tidy format, making it easy to work with in R.
+
+## Load packages
+
+As well as loading `ramedas` we also load the `tidyverse` packages.
+
+```{r message = FALSE}
+library(tidyverse)
+library(ramedas)
+
+# Set up ggplot defaults
+theme_set(theme_bw())
+theme_update(text=ggplot2::element_text(family="HiraKakuProN-W3")) # Display Japanese text properly
+```
+
+## Load data
+
+With the package attached we can go ahead and simply read the csv file.
+
+```{r}
+amedas_data <- read_amedas_csv("../inst/extradata/asahikawa-temp-snow.csv") %>% 
+  mutate(年月日時 = lubridate::ymd_hms(年月日時)) # Make the times easier to work with
+
+head(amedas_data, 10)
+```
+
+`read_amedas_csv` is intended to be un-opinionated and preserves the reading's metadata such as `品質情報` and `均質番号`. As most people probably want to have each measurement as a column, `ramedas` provides a `pivot_measurements` function to pivot the table wider.
+
+## `pivot_measurements`
+
+Before pivoting, you need to make a decision about what level of `品質情報` (measurement quality) is acceptable to include. The `品質情報` are defined on the [JMA website (jp)](https://www.data.jma.go.jp/gmd/risk/obsdl/top/help3.html) as:
+
+|品質情報 Value|Web Display|Description|
+|---           |---        |--- |
+|8             |値         |No measurement problems|
+|5             |値)        |Some measurements were missed, but enough made to be considered reliable (usually >80%) |
+|4             |値]        |Insufficient measurements|
+|2             |#          |Value is suspect|
+|1             |///        |No value|
+|0             |空         |Not a measured data type|
+
+`ramedas` includes two functions to help assess the quality of your data, `summarise_quality` and `visualize_quality_over_time`. `summarise_quality` generates the count and proportion of each quality level per station and measurement type.
+
+```{r}
+ summarise_quality(amedas_data)
+```
+
+Here, 1 of the temperature entries is 1 and 712 of the snow entries is 1, all the rest are 8. 
+
+`visualize_quality_over_time` plots the quality over time allowing you to identify any trends. Graphing our data, we see that the missing snow depth entries were all in October, before the sensor was switched on.
+
+```{r}
+visualize_quality_over_time(amedas_data)
+```
+
+Knowing this, we are happy to ignore any values whose 品質情報 falls below 8.
+
+```{r}
+pivoted_data <- pivot_measurements(amedas_data, min_quality = 8)
+
+pivoted_data %>% 
+  filter(年月日時 > lubridate::ymd_hms("2020-10-30 12:00:00")) %>% # Show the change in 積雪(cm) when the sensor is switched on.
+  head(10)
+```
+
+## Use the data
+
+With the data pivoted, we can go on to use it however we want. For some inspiration:
+
+```{r}
+pivoted_data %>% 
+  ggplot(aes(年月日時, `気温(℃)`)) +
+  geom_line() +
+  labs(title = "旭川の気温", subtitle = "2020年10月〜2021年5月")
+```
+
+```{r}
+pivoted_data %>% 
+  filter(lubridate::month(年月日時) != 5) %>% # Limited values for May
+  mutate(月 = factor(lubridate::month(年月日時), levels = c(10, 11, 12, 1, 2, 3, 4, 5))) %>% 
+  ggplot(aes(月, `気温(℃)`)) +
+  geom_boxplot() +
+  labs(title = "旭川の気温", subtitle = "2020年10月〜2021年5月")
+```
+
+```{r}
+pivoted_data %>% 
+  filter(!is.na(`積雪(cm)`)) %>% 
+  ggplot(aes(年月日時, `積雪(cm)`)) +
+  geom_area() +
+  labs(title = "旭川の積雪量", subtitle = "2020年10月〜2021年5月")
+```

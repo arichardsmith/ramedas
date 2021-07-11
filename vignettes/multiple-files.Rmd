@@ -1,0 +1,90 @@
+---
+title: "Combining multiple files"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{multiple-files}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+```
+
+Due to the download size limit on the website, it is often necessary to download your data in multiple files. In this vignette I'll show you how to easily load them into one dataframe.
+
+## Load packages
+
+```{r setup}
+library(tidyverse)
+library(ramedas)
+```
+
+## Loading files
+
+Say for example that we have different files of sunshine hours data from each area.
+
+```{r}
+sunshine_file_1 <- "../inst/extradata/sunshine-data-tokyo.csv"
+sunshine_file_2 <- "../inst/extradata/sunshine-data-sapporo.csv"
+sunshine_file_3 <- "../inst/extradata/sunshine-data-asahikawa.csv"
+```
+
+The best strategy is to combine the files with `dplyr::bind_rows()` before filtering and pivoting. Sometimes there will be measurements missing for a certain period or you will have different measurements in each file.
+
+```{r}
+raw_data <- bind_rows(
+  read_amedas_csv(sunshine_file_1),
+  read_amedas_csv(sunshine_file_2),
+  read_amedas_csv(sunshine_file_3)
+) %>% 
+  mutate(年月日 = lubridate::ymd(年月日))
+```
+
+```{r}
+visualize_quality_over_time(raw_data)
+```
+
+Tokyo has the least data, so we will start from Tokyo's start date (`2007-11-01`).
+
+```{r}
+# Find the first entry for Tokyo that has a reading
+raw_data %>% 
+  filter(観測所名 == "東京" & 品質情報 > 1) %>% 
+  head(1)
+```
+
+The measurements with `品質情報` >= 4 still contain some data. If we were calculating monthly totals etc we would want to keep this data even if it is incomplete. However, as we are only interested in comparing averages we will drop anything with `品質情報` < 8
+
+```{r}
+sun_data <- raw_data %>% 
+  filter(年月日 >= lubridate::ymd("2007-11-01")) %>% 
+  pivot_measurements(min_quality = 8) %>% 
+  arrange(年月日)
+
+head(sun_data, 10)
+```
+
+## Where is the sunniest?
+
+Finally, with this data let's compare the sunshine hours of each city.
+
+```{r}
+sun_data %>% 
+  mutate(月 = factor(lubridate::month(年月日))) %>% 
+  group_by(観測所名, 月) %>% 
+  summarise(`日照時間` = mean(`日照時間(時間)`), .groups = "drop") %>% 
+  ggplot(aes(月, `日照時間`, fill = 観測所名)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "日照時間比較",
+    subtitle = "日平均日照時間。2007年11月〜2021年7月。"
+  )
+```
+
+南の方に負けたなー
